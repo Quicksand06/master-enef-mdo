@@ -1,0 +1,5 @@
+mass_kg 9.42
+deflection_mm 0.1377865961
+length_mm 500
+sigma_max_MPa 10.41666667
+stress_ok 1

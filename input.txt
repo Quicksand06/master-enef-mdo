@@ -1,0 +1,13 @@
+# AMDO Team A - rectangular cantilever beam
+# Geometry in mm
+b 40
+h 60
+L 500
+
+# End load in N
+F 500
+
+# Material: S235JR (illustrative nominal properties)
+E 210000        # MPa = N/mm^2
+rho 7850       # kg/m^3
+sigma_allow 235 # MPa; nominal yield reference, not safety-factored
