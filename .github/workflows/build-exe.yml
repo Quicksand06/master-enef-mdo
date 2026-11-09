@@ -1,0 +1,52 @@
+name: Build Windows executable
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          architecture: x64
+
+      - name: Install PyInstaller
+        run: python -m pip install pyinstaller==6.22.0
+
+      - name: Build executable
+        run: python -m PyInstaller --onefile --console --clean --noconfirm beam_calculation.py
+
+      - name: Check executable with sample input
+        shell: pwsh
+        run: |
+          $resultPath = Join-Path $env:RUNNER_TEMP 'beam-output.txt'
+          & .\dist\beam_calculation.exe input.txt $resultPath
+          if ($LASTEXITCODE -ne 0) { throw 'Executable failed' }
+          if (!(Test-Path $resultPath)) { throw 'Output file was not created' }
+          if (!(Select-String -Path $resultPath -Pattern '^mass_kg ' -Quiet)) {
+            throw 'Expected calculation result is missing'
+          }
+
+      - name: Include sample input
+        run: Copy-Item input.txt dist/input.txt
+
+      - name: Upload Windows download
+        uses: actions/upload-artifact@v4
+        with:
+          name: beam-calculation-windows-x64
+          path: |
+            dist/beam_calculation.exe
+            dist/input.txt
+          if-no-files-found: error
+          retention-days: 30
