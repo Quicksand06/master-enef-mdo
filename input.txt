@@ -11,3 +11,6 @@ F 500
 E 210000        # MPa = N/mm^2
 rho 7850       # kg/m^3
 sigma_allow 235 # MPa; nominal yield reference, not safety-factored
+
+# Erdbeschleunigung [m/s^2] fuer die Eigengewichtslast
+g 9.81

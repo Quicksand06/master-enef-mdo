@@ -8,11 +8,12 @@ WICHTIG: Die Einspannung ist eine Modellannahme, da die Aufgabenstellung
 keine eindeutige Lagerung vorgibt.
 
 Das Programm liest Eingangsparameter aus einer Textdatei, berechnet
-Masse, maximale Durchbiegung und maximale Biegespannung und schreibt
+Masse, maximale Durchbiegung und maximale Biegespannung unter
+Berücksichtigung des Eigengewichts und schreibt
 die Ergebnisse in eine Ausgabedatei zur späteren Einbindung in HEEDS.
 
 Aufruf:
-    py beam_calculation.py input.txt output.txt
+    python beam_calculation.py input.txt output.txt
 
 Ohne Argumente werden input.txt und output.txt im Arbeitsverzeichnis genutzt.
 Es werden keine zusätzlichen Python-Pakete benötigt.
@@ -22,6 +23,7 @@ Einheiten:
     F               – N
     E, sigma_allow  – MPa = N/mm²
     rho             – kg/m³
+    g (optional)    – m/s²; Standardwert 9.81
 """
 
 import sys
@@ -59,6 +61,10 @@ def read_input(path):
     if missing:
         raise ValueError('Missing parameters: ' + ', '.join(missing))
 
+    # Optionale Erdbeschleunigung prüfen.
+    if 'g' in data and not 0 < data['g'] < float('inf'):
+        raise ValueError('g must be positive and finite')
+
     # Alle Parameter müssen positiv und endlich sein; dies entspricht
     # den Annahmen des hier verwendeten Berechnungsmodells.
     for key in required:
@@ -86,20 +92,31 @@ def calculate(p):
     #    Das Volumen b*h*L liegt in mm³ vor; 1 mm³ = 10^-9 m³.
     mass = rho * (b * h * L) * 1e-9
 
-    # 3. Maximale Durchbiegung am freien Balkenende [mm].
-    #    Euler-Bernoulli-Balkentheorie für eine Endquerkraft:
-    #        w_max = F * L³ / (3 * E * I)
-    #    Eine größere Länge erhöht die Durchbiegung; eine größere Höhe
-    #    erhöht die Biegesteifigkeit.
-    deflection = F * L**3 / (3.0 * E * I)
+    # 3. Gleichmäßig verteilte Streckenlast durch Eigengewicht [N/mm].
+    #    Querschnitt A = b*h [mm²]; Umrechnung in m² mit 10^-6.
+    #    rho*A_m² ergibt kg/m; Multiplikation mit g ergibt N/m.
+    #    Umrechnung von N/m in N/mm mit 10^-3.
+    #    Das Eigengewicht wirkt in derselben Richtung wie die Endkraft F.
+    g = p.get('g', 9.81)  # Erdbeschleunigung [m/s²]
+    q = rho * (b * h * 1e-6) * g * 1e-3
 
-    # 4. Maximale Biegespannung [MPa = N/mm²].
-    #    Größtes Biegemoment an der Einspannung: M_max = F * L [N*mm].
-    #    Abstand der Randfaser von der neutralen Achse: h/2 [mm].
-    #    Formel: sigma_max = M_max * (h/2) / I.
-    sigma = F * L * (h / 2.0) / I
+    # 4. Maximale Durchbiegung am freien Ende [mm].
+    #    Superposition aus Endkraft und gleichmäßiger Streckenlast:
+    #        w_F = F*L³/(3*E*I)
+    #        w_G = q*L⁴/(8*E*I)
+    deflection_force = F * L**3 / (3.0 * E * I)
+    deflection_self_weight = q * L**4 / (8.0 * E * I)
+    deflection = deflection_force + deflection_self_weight
 
-    # 5. Prüfung der Spannungsnebenbedingung.
+    # 5. Maximale Biegespannung an der Einspannung [MPa].
+    #    Biegemoment durch Endkraft: M_F = F*L [N*mm].
+    #    Biegemoment durch Eigengewicht: M_G = q*L²/2 [N*mm].
+    #    Spannung an der Randfaser: sigma = (M_F + M_G)*(h/2)/I.
+    moment_force = F * L
+    moment_self_weight = q * L**2 / 2.0
+    sigma = (moment_force + moment_self_weight) * (h / 2.0) / I
+
+    # 6. Prüfung der Spannungsnebenbedingung.
     #    stress_ok = 1 bei sigma <= sigma_allow, sonst 0.
     #    235 MPa ist hier ein nomineller Richtwert für S235JR, kein
     #    automatisch mit Sicherheitsbeiwert festgelegter zulässiger Wert.
@@ -113,6 +130,9 @@ def calculate(p):
         'length_mm': L,               # in HEEDS maximieren
         'sigma_max_MPa': sigma,       # Nebenbedingung: <= sigma_allow
         'stress_ok': stress_ok,       # zusätzliche Prüfung (1/0)
+        'self_weight_N': q * L,      # Eigengewichtskraft [N]
+        'deflection_force_mm': deflection_force,  # Anteil der Endkraft
+        'deflection_self_weight_mm': deflection_self_weight,  # Eigengewichtsanteil
     }
 
 
