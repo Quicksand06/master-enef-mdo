@@ -1,0 +1,55 @@
+name: Generate Pareto HTML pages
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pareto-html:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: python -m pip install pandas plotly
+
+      - name: Generate one HTML page per CSV
+        shell: python
+        run: |
+          from pathlib import Path
+          import subprocess
+          import sys
+
+          # Snapshot inputs before pareto.py creates additional *_pareto.csv files.
+          inputs = sorted(
+              path for path in Path('csv').iterdir()
+              if path.is_file() and path.suffix.lower() == '.csv'
+          )
+          if not inputs:
+              sys.exit('No CSV input files found in csv/')
+
+          output_dir = Path('pareto-html')
+          output_dir.mkdir()
+          for source in inputs:
+              subprocess.run(
+                  [sys.executable, 'pareto.py', str(source), '--log-y',
+                   '--output', str(output_dir / (source.stem + '.html'))],
+                  check=True,
+              )
+
+      - name: Upload HTML pages as one artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pareto-html
+          path: pareto-html/*.html
+          if-no-files-found: error
+          retention-days: 30
