@@ -22,7 +22,7 @@ jobs:
       - name: Install dependencies
         run: python -m pip install pandas plotly
 
-      - name: Generate one HTML page per CSV
+      - name: Generate individual and combined HTML charts
         shell: python
         run: |
           from pathlib import Path
@@ -45,6 +45,12 @@ jobs:
                    '--output', str(output_dir / (source.stem + '.html'))],
                   check=True,
               )
+
+          subprocess.run(
+              [sys.executable, 'pareto.py', *map(str, inputs), '--log-y',
+               '--output', str(output_dir / 'comparison.html')],
+              check=True,
+          )
 
       - name: Upload HTML pages as one artifact
         uses: actions/upload-artifact@v4
